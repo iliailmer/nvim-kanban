@@ -1,5 +1,8 @@
 # nvim-kanban
 
+[![CI](https://github.com/iliailmer/nvim-kanban/actions/workflows/ci.yml/badge.svg)](https://github.com/iliailmer/nvim-kanban/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A per-project kanban board for Neovim, backed by a `board-rs`-compatible
 `.tasklist` file (tab-separated: id, status, description, date).
 
@@ -7,7 +10,8 @@ A per-project kanban board for Neovim, backed by a `board-rs`-compatible
 
 ```lua
 {
-  dir = "~/projects/lua/nvim-kanban",
+  "iliailmer/nvim-kanban",
+  cmd = "Kanban",
   config = function()
     require("kanban").setup()
   end,
