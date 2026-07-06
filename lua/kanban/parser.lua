@@ -15,6 +15,40 @@ end
 
 local HEADER_PATTERN = "^#max_id=(%d+)$"
 
+-- Descriptions may contain real newlines; escape them (and any literal
+-- backslash) so a task still occupies exactly one physical line on disk.
+local function escape_description(s)
+	s = s:gsub("\\", "\\\\")
+	s = s:gsub("\n", "\\n")
+	return s
+end
+
+local function unescape_description(s)
+	local parts = {}
+	local i = 1
+	local len = #s
+	while i <= len do
+		local c = s:sub(i, i)
+		if c == "\\" and i < len then
+			local next_c = s:sub(i + 1, i + 1)
+			if next_c == "n" then
+				table.insert(parts, "\n")
+				i = i + 2
+			elseif next_c == "\\" then
+				table.insert(parts, "\\")
+				i = i + 2
+			else
+				table.insert(parts, c)
+				i = i + 1
+			end
+		else
+			table.insert(parts, c)
+			i = i + 1
+		end
+	end
+	return table.concat(parts)
+end
+
 --- Parse .tasklist file contents into tasks + max_id.
 --- @param lines string[]
 --- @return table[] tasks
@@ -37,15 +71,17 @@ function M.parse(lines)
 	for i = start_index, #lines do
 		local line = lines[i]
 		if line ~= "" then
-			local id_str, label, description, date = line:match("^([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)$")
+			local id_str, label, title, description_raw, date =
+				line:match("^([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)$")
 			local id = id_str and tonumber(id_str)
 			local status = label and M.LABEL_TO_STATUS[label]
 
-			if id and status and description and date then
+			if id and status and title and description_raw and date then
 				table.insert(tasks, {
 					id = id,
 					status = status,
-					description = description,
+					title = title,
+					description = unescape_description(description_raw),
 					date = date,
 				})
 				-- Only bump max_id from task ids if header was present (safe to trust file's max_id anchor)
@@ -72,7 +108,17 @@ function M.serialize(tasks, max_id)
 	local lines = { string.format("#max_id=%d", max_id) }
 	for _, task in ipairs(tasks) do
 		local label = M.STATUS_LABELS[task.status]
-		table.insert(lines, string.format("%d\t%s\t%s\t%s", task.id, label, task.description, task.date))
+		table.insert(
+			lines,
+			string.format(
+				"%d\t%s\t%s\t%s\t%s",
+				task.id,
+				label,
+				task.title,
+				escape_description(task.description),
+				task.date
+			)
+		)
 	end
 	return lines
 end

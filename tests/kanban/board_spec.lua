@@ -3,20 +3,21 @@ local board_mod = require("kanban.board")
 describe("kanban.board", function()
   local function new_board()
     return board_mod.new({
-      { id = 1, status = "not_started", description = "first", date = "2025-01-01 00:00" },
-      { id = 2, status = "in_progress", description = "second", date = "2025-01-02 00:00" },
+      { id = 1, status = "not_started", title = "first", description = "first desc", date = "2025-01-01 00:00" },
+      { id = 2, status = "in_progress", title = "second", description = "second desc", date = "2025-01-02 00:00" },
     }, 2)
   end
 
   describe("add", function()
-    it("assigns max_id + 1 and increments max_id", function()
+    it("assigns max_id + 1, increments max_id, and starts with an empty description", function()
       local board = new_board()
 
       local task = board:add("third")
 
       assert.equals(3, task.id)
       assert.equals("not_started", task.status)
-      assert.equals("third", task.description)
+      assert.equals("third", task.title)
+      assert.equals("", task.description)
       assert.equals(3, board:get_max_id())
       assert.equals(3, #board:get_tasks())
     end)
@@ -39,23 +40,45 @@ describe("kanban.board", function()
     end)
   end)
 
-  describe("edit", function()
-    it("changes description without touching id, status, or date", function()
+  describe("rename", function()
+    it("changes title without touching id, status, description, or date", function()
       local board = new_board()
 
-      local ok = board:edit(2, "second, revised")
+      local ok = board:rename(2, "second, revised")
 
       assert.is_true(ok)
       local task = board:get_tasks()[2]
       assert.equals(2, task.id)
       assert.equals("in_progress", task.status)
-      assert.equals("second, revised", task.description)
+      assert.equals("second, revised", task.title)
+      assert.equals("second desc", task.description)
       assert.equals("2025-01-02 00:00", task.date)
     end)
 
     it("returns false for an unknown id", function()
       local board = new_board()
-      assert.is_false(board:edit(999, "new description"))
+      assert.is_false(board:rename(999, "new title"))
+    end)
+  end)
+
+  describe("set_description", function()
+    it("changes description without touching id, status, title, or date", function()
+      local board = new_board()
+
+      local ok = board:set_description(2, "revised desc")
+
+      assert.is_true(ok)
+      local task = board:get_tasks()[2]
+      assert.equals(2, task.id)
+      assert.equals("in_progress", task.status)
+      assert.equals("second", task.title)
+      assert.equals("revised desc", task.description)
+      assert.equals("2025-01-02 00:00", task.date)
+    end)
+
+    it("returns false for an unknown id", function()
+      local board = new_board()
+      assert.is_false(board:set_description(999, "new description"))
     end)
   end)
 

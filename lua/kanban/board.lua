@@ -30,14 +30,15 @@ local function find_index(tasks, id)
   return nil
 end
 
---- @param description string
+--- @param title string
 --- @return table task
-function Board:add(description)
+function Board:add(title)
   self.max_id = self.max_id + 1
   local task = {
     id = self.max_id,
     status = "not_started",
-    description = description,
+    title = title,
+    description = "",
     date = os.date("%Y-%m-%d %H:%M"),
   }
   table.insert(self.tasks, task)
@@ -57,9 +58,21 @@ function Board:update_status(id, status)
 end
 
 --- @param id number
+--- @param title string
+--- @return boolean ok
+function Board:rename(id, title)
+  local index = find_index(self.tasks, id)
+  if not index then
+    return false
+  end
+  self.tasks[index].title = title
+  return true
+end
+
+--- @param id number
 --- @param description string
 --- @return boolean ok
-function Board:edit(id, description)
+function Board:set_description(id, description)
   local index = find_index(self.tasks, id)
   if not index then
     return false
