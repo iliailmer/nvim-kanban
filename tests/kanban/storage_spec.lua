@@ -1,69 +1,38 @@
 local storage = require("kanban.storage")
 
-local function mkdirp(path)
-  vim.fn.mkdir(path, "p")
+local function tree()
+  local root = vim.fn.tempname()
+  vim.fn.mkdir(root .. "/a/b", "p")
+  return root
 end
 
-describe("kanban.storage", function()
-  describe("find_tasklist", function()
-    it("finds .tasklist in the starting directory", function()
-      local root = vim.fn.tempname()
-      mkdirp(root)
-      vim.fn.writefile({ "#max_id=0" }, root .. "/.tasklist")
+describe("kanban.storage.find_tasklist", function()
+  it("finds the nearest .tasklist in a parent directory", function()
+    local root = tree()
+    vim.fn.writefile({ "#max_id=0" }, root .. "/.tasklist")
 
-      local found = storage.find_tasklist(root)
+    local path, found = storage.find_tasklist(root .. "/a/b", "/unused")
 
-      assert.equals(root .. "/.tasklist", found)
-    end)
-
-    it("finds .tasklist in a parent directory from a nested cwd", function()
-      local root = vim.fn.tempname()
-      local nested = root .. "/a/b/c"
-      mkdirp(nested)
-      vim.fn.writefile({ "#max_id=0" }, root .. "/.tasklist")
-
-      local found = storage.find_tasklist(nested)
-
-      assert.equals(root .. "/.tasklist", found)
-    end)
-
-    it("returns nil when no .tasklist exists up to the search boundary", function()
-      local root = vim.fn.tempname()
-      local nested = root .. "/x/y"
-      mkdirp(nested)
-
-      local found = storage.find_tasklist(nested)
-
-      assert.is_nil(found)
-    end)
+    assert.equals(root .. "/.tasklist", path)
+    assert.is_true(found)
   end)
 
-  describe("read_file", function()
-    it("returns an empty table for a nonexistent file", function()
-      local lines = storage.read_file(vim.fn.tempname() .. "/does-not-exist")
-      assert.same({}, lines)
-    end)
+  it("stops at the git root and proposes a new tasklist there", function()
+    local root = tree()
+    vim.fn.mkdir(root .. "/.git")
 
-    it("reads existing file lines", function()
-      local path = vim.fn.tempname()
-      vim.fn.writefile({ "a", "b" }, path)
+    local path, found = storage.find_tasklist(root .. "/a/b", "/unused")
 
-      local lines = storage.read_file(path)
-
-      assert.same({ "a", "b" }, lines)
-    end)
+    assert.equals(root .. "/.tasklist", path)
+    assert.is_false(found)
   end)
 
-  describe("write_file", function()
-    it("writes lines atomically and leaves no temp file behind", function()
-      local path = vim.fn.tempname()
+  it("uses the fallback directory outside a repository", function()
+    local root = tree()
 
-      local ok, err = storage.write_file(path, { "#max_id=0", "1\tstatus\tdesc\tdate" })
+    local path, found = storage.find_tasklist(root .. "/a/b", root .. "/a")
 
-      assert.is_true(ok)
-      assert.is_nil(err)
-      assert.same({ "#max_id=0", "1\tstatus\tdesc\tdate" }, vim.fn.readfile(path))
-      assert.equals(0, vim.fn.filereadable(path .. ".tmp"))
-    end)
+    assert.equals(root .. "/a/.tasklist", path)
+    assert.is_false(found)
   end)
 end)

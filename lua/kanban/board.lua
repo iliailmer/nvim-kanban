@@ -3,22 +3,15 @@ local M = {}
 local Board = {}
 Board.__index = Board
 
---- @param tasks table[]
---- @param max_id number
+--- @param tasks table[] tasks as returned by `tsk show --json`
+--- @param client table { add, update, delete } bound to one tasklist
 --- @return table board
-function M.new(tasks, max_id)
-  return setmetatable({
-    tasks = tasks,
-    max_id = max_id,
-  }, Board)
+function M.new(tasks, client)
+  return setmetatable({ tasks = tasks, client = client }, Board)
 end
 
 function Board:get_tasks()
   return self.tasks
-end
-
-function Board:get_max_id()
-  return self.max_id
 end
 
 local function find_index(tasks, id)
@@ -30,62 +23,58 @@ local function find_index(tasks, id)
   return nil
 end
 
+local function report(err)
+  vim.notify("kanban: " .. tostring(err), vim.log.levels.ERROR)
+end
+
+-- Each change goes through tsk first. The local copy changes only when tsk
+-- saved the change, so the board never shows something that is not on disk.
+function Board:apply(id, fields)
+  local index = find_index(self.tasks, id)
+  if not index then
+    return false
+  end
+  local task, err = self.client.update(id, fields)
+  if not task then
+    report(err)
+    return false
+  end
+  self.tasks[index] = task
+  return true
+end
+
 --- @param title string
---- @return table task
+--- @return table|nil task
 function Board:add(title)
-  self.max_id = self.max_id + 1
-  local task = {
-    id = self.max_id,
-    status = "not_started",
-    title = title,
-    description = "",
-    date = os.date("%Y-%m-%d %H:%M"),
-  }
+  local task, err = self.client.add(title)
+  if not task then
+    report(err)
+    return nil
+  end
   table.insert(self.tasks, task)
   return task
 end
 
---- @param id number
---- @param status string
---- @return boolean ok
 function Board:update_status(id, status)
-  local index = find_index(self.tasks, id)
-  if not index then
-    return false
-  end
-  self.tasks[index].status = status
-  return true
+  return self:apply(id, { status = status })
 end
 
---- @param id number
---- @param title string
---- @return boolean ok
 function Board:rename(id, title)
-  local index = find_index(self.tasks, id)
-  if not index then
-    return false
-  end
-  self.tasks[index].title = title
-  return true
+  return self:apply(id, { title = title })
 end
 
---- @param id number
---- @param description string
---- @return boolean ok
 function Board:set_description(id, description)
-  local index = find_index(self.tasks, id)
-  if not index then
-    return false
-  end
-  self.tasks[index].description = description
-  return true
+  return self:apply(id, { description = description })
 end
 
---- @param id number
---- @return boolean ok
 function Board:delete(id)
   local index = find_index(self.tasks, id)
   if not index then
+    return false
+  end
+  local _, err = self.client.delete(id)
+  if err then
+    report(err)
     return false
   end
   table.remove(self.tasks, index)

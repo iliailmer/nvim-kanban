@@ -1,12 +1,15 @@
 local M = {}
 
-local parser = require("kanban.parser")
-
 local COLUMN_STATUSES = { "not_started", "in_progress", "done" }
+
+local STATUS_LABELS = {
+  not_started = "🚀 Not Started",
+  in_progress = "⏳ In Progress",
+  done = "✅ Done",
+}
 
 local state = {
   board = nil,
-  on_change = nil,
   wins = {},
   bufs = {},
   line_ids = {},
@@ -61,12 +64,6 @@ end
 local function render()
   for col_index = 1, #COLUMN_STATUSES do
     render_column(col_index)
-  end
-end
-
-local function persist()
-  if state.on_change then
-    state.on_change()
   end
 end
 
@@ -127,7 +124,6 @@ local function move_focused_card(delta)
     return
   end
   state.board:update_status(id, COLUMN_STATUSES[target_index])
-  persist()
   render()
   focus_column(target_index)
 end
@@ -138,7 +134,6 @@ local function add_card()
       return
     end
     state.board:add(title)
-    persist()
     render()
   end)
 end
@@ -154,7 +149,6 @@ local function rename_card()
       return
     end
     state.board:rename(id, title)
-    persist()
     render()
   end)
 end
@@ -167,7 +161,6 @@ local function delete_card()
   vim.ui.select({ "No", "Yes" }, { prompt = "Delete task " .. id .. "?" }, function(choice)
     if choice == "Yes" then
       state.board:delete(id)
-      persist()
       render()
     end
   end)
@@ -230,7 +223,6 @@ local function detail_rename()
       return
     end
     state.board:rename(task_id, title)
-    persist()
     render()
     render_detail()
   end)
@@ -290,7 +282,6 @@ local function open_description_editor()
     local id = editor_state.task_id
     close_editor()
     state.board:set_description(id, description)
-    persist()
     render()
     render_detail()
   end
@@ -372,8 +363,7 @@ local function set_keymaps(buf)
 end
 
 --- @param board table a kanban.board instance
---- @param opts table { on_change: function() }
-function M.open(board, opts)
+function M.open(board)
   if editor_state.win and vim.api.nvim_win_is_valid(editor_state.win) then
     vim.api.nvim_win_close(editor_state.win, true)
   end
@@ -389,7 +379,6 @@ function M.open(board, opts)
   end
 
   state.board = board
-  state.on_change = opts and opts.on_change
   state.focus = 1
 
   local columns = #COLUMN_STATUSES
@@ -414,7 +403,7 @@ function M.open(board, opts)
       col = col_start + (col_index - 1) * col_width,
       style = "minimal",
       border = "rounded",
-      title = parser.STATUS_LABELS[status],
+      title = STATUS_LABELS[status],
       title_pos = "center",
     })
 
