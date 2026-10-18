@@ -1,65 +1,72 @@
 local M = {}
 
 local storage = require("kanban.storage")
-local parser = require("kanban.parser")
+local tsk = require("kanban.tsk")
 local board_mod = require("kanban.board")
 local ui = require("kanban.ui")
 
 local function start_directory()
   local bufname = vim.api.nvim_buf_get_name(0)
-  if bufname ~= "" then
+  if bufname ~= "" and vim.bo.buftype == "" then
     return vim.fn.fnamemodify(bufname, ":p:h")
   end
   return vim.fn.getcwd()
 end
 
-local function open_path(path)
-  local lines = storage.read_file(path)
-  local tasks, max_id = parser.parse(lines)
-  local board = board_mod.new(tasks, max_id)
+local function report(err)
+  vim.notify("kanban: " .. tostring(err), vim.log.levels.ERROR)
+end
 
-  ui.open(board, {
-    on_change = function()
-      local ok, err = storage.write_file(
-        path,
-        parser.serialize(board:get_tasks(), board:get_max_id())
-      )
-      if not ok then
-        vim.notify("kanban: failed to save .tasklist: " .. tostring(err), vim.log.levels.ERROR)
-      end
+local function open_path(path)
+  local tasks, err = tsk.list(path)
+  if not tasks then
+    report(err)
+    return
+  end
+  local client = {
+    add = function(title)
+      return tsk.add(path, title)
     end,
-  })
+    update = function(id, fields)
+      return tsk.update(path, id, fields)
+    end,
+    delete = function(id)
+      return tsk.delete(path, id)
+    end,
+  }
+  ui.open(board_mod.new(tasks, client))
 end
 
 function M.open()
-  local path = storage.find_tasklist(start_directory())
+  local ok, err = tsk.check_version()
+  if not ok then
+    report(err)
+    return
+  end
 
-  if path then
+  local path, found = storage.find_tasklist(start_directory(), vim.fn.getcwd())
+  if found then
     open_path(path)
     return
   end
 
-  local cwd = vim.fn.getcwd()
-
-  vim.ui.select({ "No", "Yes" }, {
-    prompt = "No .tasklist found. Create one in " .. cwd .. "?",
-  }, function(choice)
+  vim.ui.select({ "No", "Yes" }, { prompt = "No .tasklist found. Create " .. path .. "?" }, function(choice)
     if choice ~= "Yes" then
       return
     end
-    local new_path = cwd .. "/.tasklist"
-    local ok, err = storage.write_file(new_path, { "#max_id=0" })
-    if not ok then
-      vim.notify("kanban: failed to create .tasklist: " .. tostring(err), vim.log.levels.ERROR)
+    local created, init_err = tsk.init(path)
+    if not created then
+      report(init_err)
       return
     end
-    open_path(new_path)
+    open_path(path)
   end)
 end
 
---- @param opts table|nil
+--- @param opts table|nil { tsk: string|nil } the tsk command, default "tsk"
 function M.setup(opts)
   opts = opts or {}
+  tsk.configure({ cmd = opts.tsk })
   vim.api.nvim_create_user_command("Kanban", function()
     M.open()
   end, {})

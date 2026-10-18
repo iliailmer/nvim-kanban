@@ -19,7 +19,15 @@ jobs:
       - name: Clone plenary.nvim
         run: git clone --depth 1 https://github.com/nvim-lua/plenary.nvim /tmp/plenary.nvim
 
+      - name: Install tsk
+        run: |
+          curl -sSfL "https://github.com/iliailmer/taskboard/releases/download/v${TSK_VERSION}/taskboard-x86_64-unknown-linux-gnu.tar.xz" | tar xJ -C /tmp
+          /tmp/taskboard-x86_64-unknown-linux-gnu/tsk --version
+        env:
+          TSK_VERSION: 0.3.0
+
       - name: Run tests
         run: make test
         env:
           PLENARY_PATH: /tmp/plenary.nvim
+          TSK_BIN: /tmp/taskboard-x86_64-unknown-linux-gnu/tsk

@@ -3,10 +3,20 @@
 [![CI](https://github.com/iliailmer/nvim-kanban/actions/workflows/ci.yml/badge.svg)](https://github.com/iliailmer/nvim-kanban/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A per-project kanban board for Neovim, backed by a `.tasklist` file
-(tab-separated: id, status, title, description, date). Each card has a short
-title (shown on the board) and a full, multi-line description you open by
-entering the card.
+A per-project kanban board for Neovim, backed by
+[`tsk`](https://github.com/iliailmer/taskboard). Each card has a short title
+(shown on the board) and a full, multi-line description you open by entering
+the card.
+
+The plugin reads and changes tasks only through the `tsk` command, so the board
+and the command line always agree, and `tsk`'s file locking and corrupt-file
+checks apply to every change.
+
+## Requirements
+
+- Neovim 0.10 or newer
+- `tsk` 0.3.0 or newer: `cargo install taskboard`, or a binary from the
+  [releases page](https://github.com/iliailmer/taskboard/releases)
 
 ## Install (lazy.nvim)
 
@@ -15,6 +25,7 @@ entering the card.
   "iliailmer/nvim-kanban",
   cmd = "Kanban",
   config = function()
+    -- tsk = "/path/to/tsk" if tsk is not on your PATH
     require("kanban").setup()
   end,
 }
@@ -22,10 +33,11 @@ entering the card.
 
 ## Usage
 
-Run `:Kanban` from within a project. The plugin searches upward from the current
-buffer's directory for a `.tasklist` file (like git finds `.git`); if none
-exists, it offers to create one in Neovim's current working directory (`:pwd`),
-not the buffer's directory.
+Run `:Kanban` from within a project. The plugin uses the same tasklist as
+`tsk`: the nearest `.tasklist` in the current buffer's directory or above it,
+stopping at the git repository root. If none exists, it offers to create one
+at the repository root, or in Neovim's current working directory (`:pwd`)
+outside a repository.
 
 Keymaps inside the board:
 
@@ -54,5 +66,6 @@ buffer, then `<C-s>` to save and return, or `q`/`Esc` to discard changes.
 ## Testing
 
 ```bash
-make test
+make test                          # uses tsk on PATH
+TSK_BIN=/path/to/tsk make test     # or a specific build
 ```
