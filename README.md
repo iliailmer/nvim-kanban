@@ -50,6 +50,7 @@ Keymaps inside the board:
 | `r`              | Rename the focused card's title              |
 | `<CR>`           | Open the focused card's detail view          |
 | `d`              | Delete the focused card (confirms first)     |
+| `?`              | Show the list of board keys                  |
 | `q` / `Esc`      | Close the board                              |
 
 Inside a card's detail view (opened with `<CR>`):
