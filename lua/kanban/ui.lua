@@ -3,15 +3,13 @@ local M = {}
 local COLUMN_STATUSES = { "not_started", "in_progress", "done" }
 
 local BOARD_KEYS = {
-  { "j/k", "move between cards" },
-  { "h/l", "move between columns" },
-  { "H/L", "move the card to the next column" },
-  { "n", "new card" },
-  { "r", "rename card" },
-  { "d", "delete card" },
-  { "<CR>", "open the card" },
-  { "?", "show this list" },
-  { "q/<Esc>", "close the board" },
+  { "h/l", "column" },
+  { "H/L", "move card" },
+  { "n", "new" },
+  { "r", "rename" },
+  { "d", "delete" },
+  { "<CR>", "open" },
+  { "q", "close" },
 }
 
 local STATUS_LABELS = {
@@ -26,6 +24,7 @@ local state = {
   bufs = {},
   line_ids = {},
   focus = 1,
+  keys_win = nil,
 }
 
 local detail_state = {
@@ -184,9 +183,13 @@ local function close()
       vim.api.nvim_win_close(win, true)
     end
   end
+  if state.keys_win and vim.api.nvim_win_is_valid(state.keys_win) then
+    vim.api.nvim_win_close(state.keys_win, true)
+  end
   state.wins = {}
   state.bufs = {}
   state.line_ids = {}
+  state.keys_win = nil
 end
 
 -- ## Card detail view + description editor
@@ -350,41 +353,28 @@ local function open_detail()
   vim.keymap.set("n", "<Esc>", close_detail, opts)
 end
 
-local function show_help()
-  local lines = {}
-  local width = 0
+local function open_keys_line(row, col, width)
+  local parts = {}
   for _, key in ipairs(BOARD_KEYS) do
-    local line = string.format(" %-8s %s ", key[1], key[2])
-    table.insert(lines, line)
-    width = math.max(width, vim.fn.strdisplaywidth(line))
+    table.insert(parts, key[1] .. " " .. key[2])
   end
+  local line = table.concat(parts, "  ")
+  local pad = math.max(0, math.floor((width - vim.fn.strdisplaywidth(line)) / 2))
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].bufhidden = "wipe"
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { string.rep(" ", pad) .. line })
   vim.bo[buf].modifiable = false
 
-  local win = vim.api.nvim_open_win(buf, true, {
+  state.keys_win = vim.api.nvim_open_win(buf, false, {
     relative = "editor",
     width = width,
-    height = #lines,
-    row = math.floor((vim.o.lines - #lines) / 2),
-    col = math.floor((vim.o.columns - width) / 2),
+    height = 1,
+    row = row,
+    col = col,
     style = "minimal",
-    border = "rounded",
-    title = " Keys ",
-    title_pos = "center",
+    focusable = false,
   })
-
-  local function close_help()
-    if vim.api.nvim_win_is_valid(win) then
-      vim.api.nvim_win_close(win, true)
-    end
-  end
-  local opts = { buffer = buf, nowait = true, silent = true }
-  for _, key in ipairs({ "q", "<Esc>", "?" }) do
-    vim.keymap.set("n", key, close_help, opts)
-  end
 end
 
 local function set_keymaps(buf)
@@ -407,7 +397,6 @@ local function set_keymaps(buf)
   vim.keymap.set("n", "r", rename_card, opts)
   vim.keymap.set("n", "d", delete_card, opts)
   vim.keymap.set("n", "<CR>", open_detail, opts)
-  vim.keymap.set("n", "?", show_help, opts)
   vim.keymap.set("n", "q", close, opts)
   vim.keymap.set("n", "<Esc>", close, opts)
 end
@@ -445,7 +434,7 @@ function M.open(board)
     vim.bo[buf].swapfile = false
     vim.bo[buf].bufhidden = "wipe"
 
-    local win_config = {
+    local win = vim.api.nvim_open_win(buf, col_index == 1, {
       relative = "editor",
       width = col_width - 1,
       height = height,
@@ -455,18 +444,14 @@ function M.open(board)
       border = "rounded",
       title = STATUS_LABELS[status],
       title_pos = "center",
-    }
-    if col_index == math.ceil(columns / 2) then
-      win_config.footer = " ? keys "
-      win_config.footer_pos = "center"
-    end
-    local win = vim.api.nvim_open_win(buf, col_index == 1, win_config)
+    })
 
     state.bufs[col_index] = buf
     state.wins[col_index] = win
     set_keymaps(buf)
   end
 
+  open_keys_line(row + height + 2, col_start, total_width)
   render()
 end
 
